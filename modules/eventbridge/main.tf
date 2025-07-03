@@ -1,25 +1,18 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.17.1"
-    }
-  }
-}
-
 module "locals" {
-  source   = "../locals_variables"
+  source = "../locals_variables"
 
   integration_type = "None"
-  random_string = "None"
+  random_string    = "None"
 }
 
 locals {
-  endpoint_url = "https://aws-events.${lookup(module.locals.coralogix_domains, var.coralogix_region, "EU1")}/aws/event"
+  endpoint_url = var.custom_url != null ? var.custom_url : "https://aws-events.${lookup(module.locals.coralogix_domains, var.coralogix_region, "EU1")}/aws/event"
+
   tags = {
     terraform-module         = "eventbridge-to-coralogix"
     terraform-module-version = "v0.0.3"
     managed-by               = "coralogix-terraform"
+    refactored-by            = "krom-devops-team"
   }
   application_name = var.application_name == null ? "coralogix-${var.eventbridge_stream}" : var.application_name
 }
@@ -77,16 +70,18 @@ resource "aws_cloudwatch_event_connection" "event-connectiong" {
       key   = "x-amz-event-bridge-access-key"
       value = var.private_key
     }
-    invocation_http_parameters {
-      header {
-        key             = "cx-application-name"
-        value           = local.application_name
-        is_value_secret = false
+   invocation_http_parameters {
+    dynamic "header" {
+      for_each = var.additional_headers
+      content {
+        key             = header.value.key
+        value           = header.value.value
+        is_value_secret = lookup(header.value, "is_value_secret", false)
       }
+    }
     }
   }
 }
-
 resource "aws_cloudwatch_event_api_destination" "api-connection" {
   name                             = "toCoralogix"
   description                      = "EventBridge Api destination to Coralogix"
@@ -106,15 +101,15 @@ resource "aws_cloudwatch_event_target" "my_event_target" {
 // Creating Rule for classify the events we want to get
 
 resource "aws_cloudwatch_event_rule" "eventbridge_rule" {
-  name        = "eventbridge_rule"
-  description = "Capture the main events"
+  name           = "eventbridge_rule"
+  description    = "Capture the main events"
   event_bus_name = var.eventbridge_stream
   ///A number of services that we think are relevant to monitor, sub-alerts can be changed and classified
   event_pattern = var.detail_type != null ? jsonencode(
     {
       "source" : var.sources
       "detail-type" : var.detail_type
-  }): jsonencode(
+    }) : jsonencode(
     {
       "source" : var.sources
     }
