@@ -276,6 +276,34 @@ resource "aws_kinesis_firehose_delivery_stream" "coralogix_stream_logs" {
         }
       }
     }
+
+    dynamic "processing_configuration" {
+      for_each = var.preprocessing_lambda_arn != null && var.preprocessing_lambda_arn != "" ? [1] : []
+      
+      content {
+        enabled = "true"
+
+        processors {
+          type = "Lambda"
+
+          parameters {
+            parameter_name  = "LambdaArn"
+            parameter_value = "${var.preprocessing_lambda_arn}:$LATEST"
+          }
+
+          # Keeps uncompressed JSON within Coralogix's 6MB ingestion limit
+          parameters {
+            parameter_name  = "BufferSizeInMBs"
+            parameter_value = "1" 
+          }
+
+          parameters {
+            parameter_name  = "BufferIntervalInSeconds"
+            parameter_value = "60"
+          }
+        }
+      }
+    }
   }
 
   server_side_encryption {
