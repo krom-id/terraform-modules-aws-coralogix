@@ -125,3 +125,10 @@ variable "server_side_encryption" {
     error_message = "Valid values for key_type are AWS_OWNED_CMK and CUSTOMER_MANAGED_CMK."
   }
 }
+
+
+variable "preprocessing_lambda_arn" {
+  description = "Lambda for preprocessing request"
+  type        = string
+  default     = null
+}
